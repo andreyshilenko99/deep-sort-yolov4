@@ -1,0 +1,11 @@
+yolov4.weights
+*.avi
+*.mp4
+*.idea
+__pycache__/
+*.h5
+.ipynb_checkpoints
+*.
+dataset/
+test_nb
+custom.weights
