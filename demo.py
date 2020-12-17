@@ -20,6 +20,7 @@ import imutils.video
 from videocaptureasync import VideoCaptureAsync
 from os.path import join
 from collections import OrderedDict
+from operator import sub
 
 config = tensorflow.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -142,13 +143,14 @@ def select_object(img):
 
 
 def find_centroid(bbox):
-    return [int((bbox[0] + bbox[2]) / 2), int((bbox[1] + bbox[3]) / 2)]
+    return (int((bbox[0] + bbox[2]) / 2), int((bbox[1] + bbox[3]) / 2))
 
 
 class Counter:
     def __init__(self, counter_in, counter_out, track_id):
         self.people_init = OrderedDict()
         self.people_bbox = OrderedDict()
+        self.cur_bbox = OrderedDict()
         # self.dissappeared_frames = OrderedDict()
         self.counter_in = counter_in
         self.counter_out = counter_out
@@ -169,16 +171,17 @@ class Counter:
 
 def main(yolo):
     # Definition of the parameters
-    max_cosine_distance = 0.3
+    max_cosine_distance = 0.4
     nn_budget = None
     nms_max_overlap = 1.0
 
     output_format = 'mp4'
-    video_name = 'bus1.mp4'
+    video_name = 'bus5.mp4'
     file_path = join('data_files', video_name)
     output_name = 'save_data/out_' + video_name[0:-3] + output_format
     initialize_door_by_yourself = False
     door_array = None
+    enter_array = None
 
     # Deep SORT
     model_filename = 'model_data/mars-small128.pb'
@@ -209,7 +212,7 @@ def main(yolo):
             w = int(video_capture.get(3))
             h = int(video_capture.get(4))
         fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        out = cv2.VideoWriter(output_name, fourcc, 30, (w, h))
+        out = cv2.VideoWriter(output_name, fourcc, 15, (w, h))
         frame_index = -1
 
     fps = 0.0
@@ -222,11 +225,19 @@ def main(yolo):
             door_array = select_object(first_frame)[0]
             print(door_array)
         else:
-            # door_array = [403, 4, 515, 320]
             # [681, 9, 1123, 750] # bus1
-            door_array = [712, 10, 1468, 613]
+            # door_array = [712, 10, 1468, 613] # bus 4
+            door_array = [715, 86, 1380, 799] #  bus 5
         door_centroid = find_centroid(door_array)
 
+    # if enter_array is None:
+    #     if initialize_enter_by_yourself:
+    #         enter_array = select_object(first_frame)[0]
+    #         print(enter_array)
+    #     else:
+    #         enter_array = [712, 10, 1468, 613]
+    #     enter_centroid = find_centroid(enter_array)
+    border_door = door_array[3]
     while True:
         ret, frame = video_capture.read()  # frame shape 640*480*3
         if ret != True:
@@ -255,10 +266,11 @@ def main(yolo):
         for det in detections:
             bbox = det.to_tlbr()
             if show_detections and len(classes) > 0:
-                det_cls = det.cls
                 score = "%.2f" % (det.confidence * 100) + "%"
-                cv2.putText(frame, str(det_cls) + " " + score, (int(bbox[0]), int(bbox[3])), 0,
-                            1e-3 * frame.shape[0], (0, 255, 0), 5)
+
+                iou_val = str(round(bb_intersection_over_union(bbox, door_array), 3))
+                cv2.putText(frame, score + " iou: " + iou_val, (int(bbox[0]), int(bbox[3])), 0,
+                            1e-3 * frame.shape[0], (0, 100, 255), 5)
                 cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 0, 0), 2)
 
         for track in tracker.tracks:
@@ -266,17 +278,18 @@ def main(yolo):
                 continue
             bbox = track.to_tlbr()
             # first appearence of object with id=track.id
-            counter.people_bbox[track.track_id] = bbox
+
             if track.track_id not in counter.people_init or counter.people_init[track.track_id] == 0:
                 counter.obj_initialized(track.track_id)
                 #     was initialized in door, probably going in
-                if bb_intersection_over_union(bbox, door_array) >= 0.1:
+                if (bb_intersection_over_union(bbox, door_array) >= 0.03 and bbox[3] < border_door) or (
+                        0.2 < bb_intersection_over_union(bbox, door_array)):
                     counter.people_init[track.track_id] = 1
                 #     initialized in the bus, mb going out
-                if bb_intersection_over_union(bbox, door_array) < 0.1:
+                elif bb_intersection_over_union(bbox, door_array) < 0.45 and bbox[3] > border_door:
                     counter.people_init[track.track_id] = 2
-
-                # counter.get_out()
+                counter.people_bbox[track.track_id] = bbox
+            counter.cur_bbox[track.track_id] = bbox
 
             adc = "%.2f" % (track.adc * 100) + "%"  # Average detection confidence
             cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 255, 255), 2)
@@ -290,33 +303,35 @@ def main(yolo):
                 cv2.putText(frame, 'ADC: ' + adc, (int(bbox[0]), int(bbox[3] + 2e-2 * frame.shape[1])), 0,
                             1e-3 * frame.shape[0], (0, 255, 0), 1)
 
-        id_get_lost = [track.track_id for track in tracker.tracks if track.time_since_update >= 29
-                       and track.age >= 45 and track.age <= 85]
-        id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 85]
-        for val in counter.people_init.keys() :
-            # if val not in [track.track_id for track in tracker.tracks]:
-            #     counter.dissappeared_frames[val] += 1
-            #     if counter.dissappeared_frames[val] >= 30:
+        id_get_lost = [track.track_id for track in tracker.tracks if track.time_since_update >= 19
+                       and track.age >= 25 ]
+        id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 300]
+        for val in counter.people_init.keys():
             # check bbox also
-            iou_door = bb_intersection_over_union(counter.people_bbox[val], door_array)
-            if val in id_get_lost and counter.people_init[val] != -1 :
 
-                if counter.people_init[val] == 1 and iou_door <= 0.25:
+            if val in id_get_lost and counter.people_init[val] != -1 :
+                iou_door = bb_intersection_over_union(counter.cur_bbox[val], door_array)
+                vector_person = map(sub, find_centroid(counter.cur_bbox[val]), find_centroid(counter.people_bbox[val]))
+                print(vector_person)
+                imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]), find_centroid(counter.people_bbox[val]), (234,33,0), 7)
+                cv2.imshow('frame', imaggg)
+                cv2.waitKey(0)
+                if counter.people_init[val] == 1 and iou_door <= 0.45 and counter.people_bbox[val][3] > border_door:
                     counter.get_in()
-                elif counter.people_init[val] == 2 and  iou_door > 0.05:
+                elif counter.people_init[val] == 2 and iou_door > 0.03 and counter.people_bbox[val][3] < border_door:
                     counter.get_out()
                 counter.people_init[val] = -1
                 # del counter.people_bbox[val]
-                # del counter.dissappeared_frames[val]
                 del val
             elif val in id_inside_tracked and counter.people_init[val] == 1 \
-                    and iou_door <= 0.15:
+                    and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.55 and counter.people_bbox[val][3] > border_door:
                 counter.get_in()
                 counter.people_init[val] = -1
                 del val
         ins, outs = counter.show_counter()
         cv2.putText(frame, "in: {}, out: {} ".format(ins, outs), (10, 30), 0,
                     1e-3 * frame.shape[0], (255, 0, 0), 5)
+
 
         cv2.namedWindow('image', cv2.WINDOW_NORMAL)
         cv2.resizeWindow('image', 1400, 800)
