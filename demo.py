@@ -143,7 +143,7 @@ def select_object(img):
 
 
 def find_centroid(bbox):
-    return (int((bbox[0] + bbox[2]) / 2), int((bbox[1] + bbox[3]) / 2))
+    return int((bbox[0] + bbox[2]) / 2), int((bbox[1] + bbox[3]) / 2)
 
 
 class Counter:
@@ -181,8 +181,6 @@ def main(yolo):
     output_name = 'save_data/out_' + video_name[0:-3] + output_format
     initialize_door_by_yourself = False
     door_array = None
-    enter_array = None
-
     # Deep SORT
     model_filename = 'model_data/mars-small128.pb'
     encoder = gdet.create_box_encoder(model_filename, batch_size=1)
@@ -227,7 +225,7 @@ def main(yolo):
         else:
             # [681, 9, 1123, 750] # bus1
             # door_array = [712, 10, 1468, 613] # bus 4
-            door_array = [715, 86, 1380, 799] #  bus 5
+            door_array = [715, 86, 1380, 799]  # bus 5
         door_centroid = find_centroid(door_array)
 
     # if enter_array is None:
@@ -240,7 +238,7 @@ def main(yolo):
     border_door = door_array[3]
     while True:
         ret, frame = video_capture.read()  # frame shape 640*480*3
-        if ret != True:
+        if not ret:
             break
 
         t1 = time.time()
@@ -304,16 +302,17 @@ def main(yolo):
                             1e-3 * frame.shape[0], (0, 255, 0), 1)
 
         id_get_lost = [track.track_id for track in tracker.tracks if track.time_since_update >= 19
-                       and track.age >= 25 ]
+                       and track.age >= 25]
         id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 300]
         for val in counter.people_init.keys():
             # check bbox also
 
-            if val in id_get_lost and counter.people_init[val] != -1 :
+            if val in id_get_lost and counter.people_init[val] != -1:
                 iou_door = bb_intersection_over_union(counter.cur_bbox[val], door_array)
                 vector_person = map(sub, find_centroid(counter.cur_bbox[val]), find_centroid(counter.people_bbox[val]))
                 print(vector_person)
-                imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]), find_centroid(counter.people_bbox[val]), (234,33,0), 7)
+                imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]), find_centroid(counter.people_bbox[val]),
+                                  (234, 33, 0), 7)
                 cv2.imshow('frame', imaggg)
                 cv2.waitKey(0)
                 if counter.people_init[val] == 1 and iou_door <= 0.45 and counter.people_bbox[val][3] > border_door:
@@ -324,14 +323,14 @@ def main(yolo):
                 # del counter.people_bbox[val]
                 del val
             elif val in id_inside_tracked and counter.people_init[val] == 1 \
-                    and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.55 and counter.people_bbox[val][3] > border_door:
+                    and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.55 and \
+                    counter.people_bbox[val][3] > border_door:
                 counter.get_in()
                 counter.people_init[val] = -1
                 del val
         ins, outs = counter.show_counter()
         cv2.putText(frame, "in: {}, out: {} ".format(ins, outs), (10, 30), 0,
                     1e-3 * frame.shape[0], (255, 0, 0), 5)
-
 
         cv2.namedWindow('image', cv2.WINDOW_NORMAL)
         cv2.resizeWindow('image', 1400, 800)
