@@ -171,15 +171,16 @@ class Counter:
 
 def main(yolo):
     # Definition of the parameters
-    max_cosine_distance = 0.4
+    max_cosine_distance = 0.2
     nn_budget = None
     nms_max_overlap = 1.0
 
     output_format = 'mp4'
-    video_name = 'bus5.mp4'
+    video_name = 'bus11.mp4'
     file_path = join('data_files', video_name)
     output_name = 'save_data/out_' + video_name[0:-3] + output_format
-    initialize_door_by_yourself = False
+    # initialize_door_by_yourself = False
+    initialize_door_by_yourself = True
     door_array = None
     # Deep SORT
     model_filename = 'model_data/mars-small128.pb'
@@ -225,7 +226,9 @@ def main(yolo):
         else:
             # [681, 9, 1123, 750] # bus1
             # door_array = [712, 10, 1468, 613] # bus 4
-            door_array = [715, 86, 1380, 799]  # bus 5
+            # door_array = [715, 86, 1380, 799]  # bus 5
+            # door_array = [564, 82, 1265, 779]  # bus 6
+            door_array = [564, 75, 1232, 828]  # bus 8
         door_centroid = find_centroid(door_array)
 
     # if enter_array is None:
@@ -280,11 +283,11 @@ def main(yolo):
             if track.track_id not in counter.people_init or counter.people_init[track.track_id] == 0:
                 counter.obj_initialized(track.track_id)
                 #     was initialized in door, probably going in
-                if (bb_intersection_over_union(bbox, door_array) >= 0.03 and bbox[3] < border_door) or (
-                        0.2 < bb_intersection_over_union(bbox, door_array)):
+                # if (bb_intersection_over_union(bbox, door_array) >= 0.03 and bbox[3] < border_door) or (
+                if 0.1 < bb_intersection_over_union(bbox, door_array):
                     counter.people_init[track.track_id] = 1
                 #     initialized in the bus, mb going out
-                elif bb_intersection_over_union(bbox, door_array) < 0.45 and bbox[3] > border_door:
+                elif bb_intersection_over_union(bbox, door_array) < 0.1:# and bbox[3] > border_door:
                     counter.people_init[track.track_id] = 2
                 counter.people_bbox[track.track_id] = bbox
             counter.cur_bbox[track.track_id] = bbox
@@ -302,32 +305,51 @@ def main(yolo):
                             1e-3 * frame.shape[0], (0, 255, 0), 1)
 
         id_get_lost = [track.track_id for track in tracker.tracks if track.time_since_update >= 19
-                       and track.age >= 25]
-        id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 300]
+                       and track.age >= 19]
+        id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 50]
         for val in counter.people_init.keys():
             # check bbox also
+            vector_person = (counter.cur_bbox[val][0] - counter.people_bbox[val][0],
+                             counter.cur_bbox[val][1] - counter.people_bbox[val][1])
 
             if val in id_get_lost and counter.people_init[val] != -1:
                 iou_door = bb_intersection_over_union(counter.cur_bbox[val], door_array)
-                vector_person = map(sub, find_centroid(counter.cur_bbox[val]), find_centroid(counter.people_bbox[val]))
-                print(vector_person)
-                imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]), find_centroid(counter.people_bbox[val]),
-                                  (234, 33, 0), 7)
-                cv2.imshow('frame', imaggg)
-                cv2.waitKey(0)
-                if counter.people_init[val] == 1 and iou_door <= 0.45 and counter.people_bbox[val][3] > border_door:
+
+                if counter.people_init[val] == 1 and iou_door <= 0.45 and vector_person[1] > 50 : #and counter.people_bbox[val][3] > border_door \
+
                     counter.get_in()
-                elif counter.people_init[val] == 2 and iou_door > 0.03 and counter.people_bbox[val][3] < border_door:
+                elif counter.people_init[val] == 2 and iou_door > 0.03 and vector_person[1] < -50: # and counter.people_bbox[val][3] < border_door\
+
                     counter.get_out()
                 counter.people_init[val] = -1
-                # del counter.people_bbox[val]
+
+                print(find_centroid(counter.cur_bbox[val]))
+                print('\n', find_centroid(counter.people_bbox[val]))
+                print('\n', vector_person)
+                imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]), find_centroid(counter.people_bbox[val]),
+                                  (254, 0, 0), 7)
+                # cv2.imshow('frame', imaggg)
+                # cv2.waitKey(0)
+
                 del val
             elif val in id_inside_tracked and counter.people_init[val] == 1 \
-                    and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.55 and \
-                    counter.people_bbox[val][3] > border_door:
+                    and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.25\
+                    and vector_person[1] > 0: # and \
+                    # counter.people_bbox[val][3] > border_door:
                 counter.get_in()
+
                 counter.people_init[val] = -1
-                del val
+                print(find_centroid(counter.cur_bbox[val]))
+                print('\n', find_centroid(counter.people_bbox[val]))
+                print('\n', vector_person)
+                imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
+                                  find_centroid(counter.people_bbox[val]),
+                                  (0, 0, 255), 7)
+                # cv2.imshow('frame', imaggg)
+                # cv2.waitKey(0)
+
+
+
         ins, outs = counter.show_counter()
         cv2.putText(frame, "in: {}, out: {} ".format(ins, outs), (10, 30), 0,
                     1e-3 * frame.shape[0], (255, 0, 0), 5)
