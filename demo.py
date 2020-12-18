@@ -176,7 +176,7 @@ def main(yolo):
     nms_max_overlap = 1.0
 
     output_format = 'mp4'
-    video_name = 'bus11.mp4'
+    video_name = 'bus12.mp4'
     file_path = join('data_files', video_name)
     output_name = 'save_data/out_' + video_name[0:-3] + output_format
     # initialize_door_by_yourself = False
