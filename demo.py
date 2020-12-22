@@ -20,8 +20,7 @@ import imutils.video
 from videocaptureasync import VideoCaptureAsync
 from os.path import join
 from collections import OrderedDict
-from operator import sub
-import pandas as pd
+from draw_enter import select_object, read_door_info
 
 
 config = tensorflow.compat.v1.ConfigProto()
@@ -54,94 +53,6 @@ def bb_intersection_over_union(boxA, boxB):
     iou = interArea / float(boxAArea + boxBArea - interArea)
     # return the intersection over union value
     return iou
-
-
-def select_object(img):
-    """
-    Interactive select rectangle ROIs and store list of bboxes.
-
-    Parameters
-    ----------
-    img :
-           image 3-dim.
-
-    Returns
-    -------
-    bbox_list_rois : list of list of int
-           List of bboxes of rectangle rois.
-    """
-
-    # mouse callback function
-    def draw_rect_roi(event, x, y, flags, param):
-        # grab references to the global variables
-        global rect_bbox, rect_endpoint_tmp, drawing
-
-        # if the left mouse button was clicked, record the starting
-        # (x, y) coordinates and indicate that drawing is being
-        # performed. set rect_endpoint_tmp empty list.
-        if event == cv2.EVENT_LBUTTONDOWN:
-            rect_endpoint_tmp = []
-            rect_bbox = [(x, y)]
-            drawing = True
-
-        # check to see if the left mouse button was released
-        elif event == cv2.EVENT_LBUTTONUP:
-            # record the ending (x, y) coordinates and indicate that
-            # drawing operation is finished
-            rect_bbox.append((x, y))
-            drawing = False
-
-            # draw a rectangle around the region of interest
-            p_1, p_2 = rect_bbox
-            cv2.rectangle(img, p_1, p_2, color=(0, 255, 0), thickness=1)
-            cv2.imshow('image', img)
-
-            # for bbox find upper left and bottom right points
-            p_1x, p_1y = p_1
-            p_2x, p_2y = p_2
-
-            lx = min(p_1x, p_2x)
-            ty = min(p_1y, p_2y)
-            rx = max(p_1x, p_2x)
-            by = max(p_1y, p_2y)
-
-            # add bbox to list if both points are different
-            if (lx, ty) != (rx, by):
-                bbox = [lx, ty, rx, by]
-                bbox_list_rois.append(bbox)
-
-        # if mouse is drawing set tmp rectangle endpoint to (x,y)
-        elif event == cv2.EVENT_MOUSEMOVE and drawing:
-            rect_endpoint_tmp = [(x, y)]
-
-    # clone image img and setup the mouse callback function
-    img_copy = img.copy()
-    cv2.namedWindow('image', cv2.WINDOW_NORMAL)
-    # cv2.resizeWindow('image', 1200, 600)
-    cv2.setMouseCallback('image', draw_rect_roi)
-
-    # keep looping until the 'c' key is pressed
-    while True:
-        # display the image and wait for a keypress
-        if not drawing:
-            cv2.namedWindow('image', cv2.WINDOW_NORMAL)
-            cv2.resizeWindow('image', 1200, 600)
-            cv2.imshow('image', img)
-        elif drawing and rect_endpoint_tmp:
-            rect_cpy = img.copy()
-            start_point = rect_bbox[0]
-            end_point_tmp = rect_endpoint_tmp[0]
-            cv2.rectangle(rect_cpy, start_point, end_point_tmp, (0, 255, 0), 1)
-            cv2.imshow('image', rect_cpy)
-
-        key = cv2.waitKey(1) & 0xFF
-        # if the 'c' key is pressed, break from the loop
-        if key == ord('c'):
-            break
-    # close all open windows
-    cv2.destroyAllWindows()
-
-    return bbox_list_rois
 
 
 def find_centroid(bbox):
@@ -199,7 +110,7 @@ def main(yolo):
     video_name = 'bus9_5in_0out.mp4'
     file_path = join('data_files/videos', video_name)
     output_name = 'save_data/out_' + video_name[0:-3] + output_format
-    initialize_door_by_yourself = True
+    initialize_door_by_yourself = False
     door_array = None
     # Deep SORT
     model_filename = 'model_data/mars-small128.pb'
@@ -244,11 +155,8 @@ def main(yolo):
             door_array = select_object(first_frame)[0]
             print(door_array)
         else:
-            # [681, 9, 1123, 750] # bus1
-            # door_array = [712, 10, 1468, 613] # bus 4
-            # door_array = [715, 86, 1380, 799]  # bus 5
-            # door_array = [564, 82, 1265, 779]  # bus 6
-            door_array = [564, 75, 1232, 828]  # bus 8
+            all_doors = read_door_info('data_files/doors_info.csv')
+            door_array = all_doors[video_name]
         door_centroid = find_centroid(door_array)
 
     # if enter_array is None:
@@ -264,7 +172,7 @@ def main(yolo):
         if not ret:
             total_count = counter.return_total_count()
             truth = get_truth(video_name)
-            true_total = truth.inside + truth.inside
+            true_total = truth.inside + truth.outside
             err = abs(total_count - true_total)/true_total
             print("predicted / true \n "
                   "counter in: {} / {}\n "
