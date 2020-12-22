@@ -122,6 +122,8 @@ def main(yolo):
     writeVideo_flag = True
     asyncVideo_flag = False
 
+    error_values = []
+
     files = os.listdir('data_files/videos')
     for file in files:
         video_name = file
@@ -178,12 +180,14 @@ def main(yolo):
                 total_count = counter.return_total_count()
                 true_total = truth.inside + truth.inside
                 err = abs(total_count - true_total)/true_total
-                print("predicted / true \n "
-                      "counter in: {} / {}\n "
-                      "counter out: {} / {}\n "
-                      "total: {} / {} \n "
-                      "error: {}".format(counter.counter_in, truth.inside, counter.counter_out, truth.outside,
-                                         total_count, true_total, err))
+                log_res = "in video: {}\n predicted / true\n counter in: {} / {}\n counter out: {} / {}\n" \
+                          " total: {} / {}\n error: {}\n______________\n".format(video_name, counter.counter_in, truth.inside,
+                                                                counter.counter_out, truth.outside,
+                                         total_count, true_total, err)
+                with open('log_results.txt', 'w') as file:
+                    file.write(log_res)
+                print(log_res)
+                error_values.append(err)
                 break
 
             t1 = time.time()
@@ -206,7 +210,8 @@ def main(yolo):
             tracker.predict()
             tracker.update(detections)
 
-            cv2.rectangle(frame, (int(door_array[0]), int(door_array[1])), (int(door_array[2]), int(door_array[3])), (23, 158, 21), 2)
+            cv2.rectangle(frame, (int(door_array[0]), int(door_array[1])), (int(door_array[2]), int(door_array[3])),
+                          (23, 158, 21), 2)
             for det in detections:
                 bbox = det.to_tlbr()
                 if show_detections and len(classes) > 0:
@@ -215,7 +220,7 @@ def main(yolo):
                     iou_val = str(round(bb_intersection_over_union(bbox, door_array), 3))
                     cv2.putText(frame, score + " iou: " + iou_val, (int(bbox[0]), int(bbox[3])), 0,
                                 1e-3 * frame.shape[0], (0, 100, 255), 5)
-                    cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 0, 0), 2)
+                    cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 0, 0), 3)
 
             for track in tracker.tracks:
                 if not track.is_confirmed() or track.time_since_update > 1:
@@ -328,6 +333,9 @@ def main(yolo):
             out.release()
 
         cv2.destroyAllWindows()
+
+    mean_error = np.mean(error_values)
+    print("mean error for {} videos: {}".format(len(files), mean_error))
 
 
 if __name__ == '__main__':

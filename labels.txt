@@ -1,5 +1,0 @@
-labels.csv
-labels.txt
-labels_counted.csv
-people_counted.csv
-videos

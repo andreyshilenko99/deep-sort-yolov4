@@ -3,11 +3,11 @@ import os
 import numpy as np
 rect_endpoint_tmp = []
 rect_bbox = []
-bbox_list_rois = []
 drawing = False
 
 
 def select_object(img):
+
     """
     Interactive select rectangle ROIs and store list of bboxes.
 
@@ -23,7 +23,9 @@ def select_object(img):
     """
 
     # mouse callback function
+    bbox_list_rois = []
     def draw_rect_roi(event, x, y, flags, param):
+
         # grab references to the global variables
         global rect_bbox, rect_endpoint_tmp, drawing
 
@@ -100,7 +102,7 @@ def read_door_info(name='doors_info.csv'):
         lines = file.readlines()
     for line in lines:
         line_l = line.split(";")
-        val = line_l[1][1:-2].split(",")
+        val = line_l[1][2:-4].split(",")
         for i, v in enumerate(val):
             val[i] = int(v)
         door_info[line_l[0]] = val
@@ -115,12 +117,12 @@ if __name__ == "__main__":
         file_path = os.path.join('data_files/videos', file)
         video_capture = cv2.VideoCapture(file_path)
         ret, first_frame = video_capture.read()
-        door = select_object(first_frame)[0]
+        door = select_object(first_frame)
         doors_arr[file] = door
 
-    with open('doors_info.csv', 'w') as file:
+    with open('doors_info.csv', 'w') as f:
         for name in doors_arr.keys():
-            file.write(str(name) + ';' + str(doors_arr[name]) +'\n')
+            f.write(str(name) + ';' + str(doors_arr[name]) +'\n')
 
     d = read_door_info()
     print(d)
