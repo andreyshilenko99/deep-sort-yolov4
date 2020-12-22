@@ -21,6 +21,8 @@ from videocaptureasync import VideoCaptureAsync
 from os.path import join
 from collections import OrderedDict
 from operator import sub
+import pandas as pd
+
 
 config = tensorflow.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -145,6 +147,22 @@ def select_object(img):
 def find_centroid(bbox):
     return int((bbox[0] + bbox[2]) / 2), int((bbox[1] + bbox[3]) / 2)
 
+class CountTruth:
+    def __init__(self, inside, outside):
+        self.inside = inside
+        self.outside = outside
+
+def get_truth(video_name, read_name='data_files/labels_counted.csv'):
+    with open('data_files/labels_counted.csv', 'r') as file:
+        lines = file.readlines()
+
+    TruthArr = CountTruth(0, 0)
+    for line in lines:
+        line = line.split(",")
+        if line[1] == video_name:
+            TruthArr.inside = int(line[2])
+            TruthArr.outside = int(line[3])
+    return TruthArr
 
 class Counter:
     def __init__(self, counter_in, counter_out, track_id):
@@ -168,6 +186,8 @@ class Counter:
     def show_counter(self):
         return self.counter_in, self.counter_out
 
+    def return_total_count(self):
+        return (self.counter_in + self.counter_out )
 
 def main(yolo):
     # Definition of the parameters
@@ -176,10 +196,9 @@ def main(yolo):
     nms_max_overlap = 1.0
 
     output_format = 'mp4'
-    video_name = 'bus12.mp4'
-    file_path = join('data_files', video_name)
+    video_name = 'bus9_5in_0out.mp4'
+    file_path = join('data_files/videos', video_name)
     output_name = 'save_data/out_' + video_name[0:-3] + output_format
-    # initialize_door_by_yourself = False
     initialize_door_by_yourself = True
     door_array = None
     # Deep SORT
@@ -194,6 +213,7 @@ def main(yolo):
     asyncVideo_flag = False
 
     counter = Counter(counter_in=0, counter_out=0, track_id=0)
+
 
     if asyncVideo_flag:
         video_capture = VideoCaptureAsync(file_path)
@@ -242,6 +262,16 @@ def main(yolo):
     while True:
         ret, frame = video_capture.read()  # frame shape 640*480*3
         if not ret:
+            total_count = counter.return_total_count()
+            truth = get_truth(video_name)
+            true_total = truth.inside + truth.inside
+            err = abs(total_count - true_total)/true_total
+            print("predicted / true \n "
+                  "counter in: {} / {}\n "
+                  "counter out: {} / {}\n "
+                  "total: {} / {} \n "
+                  "error: {}".format(counter.counter_in, truth.inside, counter.counter_out, truth.outside,
+                                     total_count, true_total, err))
             break
 
         t1 = time.time()
