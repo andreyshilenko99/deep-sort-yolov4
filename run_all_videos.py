@@ -65,7 +65,7 @@ class CountTruth:
         self.outside = outside
 
 
-def get_truth(video_name, read_name='data_files/labels_counted.csv'):
+def get_truth(video_name):
     with open('data_files/labels_counted.csv', 'r') as file:
         lines = file.readlines()
 
@@ -101,7 +101,7 @@ class Counter:
         return self.counter_in, self.counter_out
 
     def return_total_count(self):
-        return (self.counter_in + self.counter_out)
+        return self.counter_in + self.counter_out
 
 
 def main(yolo):
@@ -168,7 +168,6 @@ def main(yolo):
                 all_doors = read_door_info('data_files/doors_info.csv')
                 door_array = all_doors[video_name]
 
-            door_centroid = find_centroid(door_array)
         border_door = door_array[3]
         while True:
             ret, frame = video_capture.read()  # frame shape 640*480*3
@@ -190,8 +189,8 @@ def main(yolo):
                                                                                                  truth.outside,
                                                                                                  total_count,
                                                                                                  true_total, err, mse)
-                with open('log_results.txt', 'w') as file:
-                    file.write(log_res)
+                with open('log_results.txt', 'w') as log:
+                    log.write(log_res)
                 print(log_res)
                 error_values.append(err)
                 break
@@ -270,8 +269,8 @@ def main(yolo):
                 if val in id_get_lost and counter.people_init[val] != -1:
                     iou_door = bb_intersection_over_union(counter.cur_bbox[val], door_array)
 
-                    if counter.people_init[val] == 1 and iou_door <= 0.45 and vector_person[
-                        1] > 50:  # and counter.people_bbox[val][3] > border_door \
+                    if counter.people_init[val] == 1 and iou_door <= 0.45 and vector_person[1] > 50:
+                        # and counter.people_bbox[val][3] > border_door \
 
                         counter.get_in()
                     elif counter.people_init[val] == 2 and iou_door > 0.03 and vector_person[
@@ -283,9 +282,9 @@ def main(yolo):
                     print(find_centroid(counter.cur_bbox[val]))
                     print('\n', find_centroid(counter.people_bbox[val]))
                     print('\n', vector_person)
-                    imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
-                                      find_centroid(counter.people_bbox[val]),
-                                      (254, 0, 0), 7)
+                    # imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
+                    #                   find_centroid(counter.people_bbox[val]),
+                    #                   (254, 0, 0), 7)
                     # cv2.imshow('frame', imaggg)
                     # cv2.waitKey(0)
 
@@ -300,9 +299,9 @@ def main(yolo):
                     print(find_centroid(counter.cur_bbox[val]))
                     print('\n', find_centroid(counter.people_bbox[val]))
                     print('\n', vector_person)
-                    imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
-                                      find_centroid(counter.people_bbox[val]),
-                                      (0, 0, 255), 7)
+                    # imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
+                    #                   find_centroid(counter.people_bbox[val]),
+                    #                   (0, 0, 255), 7)
                     # cv2.imshow('frame', imaggg)
                     # cv2.waitKey(0)
 
@@ -323,7 +322,7 @@ def main(yolo):
 
             if not asyncVideo_flag:
                 fps = (fps + (1. / (time.time() - t1))) / 2
-                print("FPS = %f" % (fps))
+                print("FPS = %f" % fps)
 
             # Press Q to stop!
             if cv2.waitKey(1) & 0xFF == ord('q'):
