@@ -23,7 +23,6 @@ from os.path import join
 from collections import OrderedDict
 from draw_enter import select_object, read_door_info
 
-
 config = tensorflow.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
 session = tensorflow.compat.v1.InteractiveSession(config=config)
@@ -59,10 +58,12 @@ def bb_intersection_over_union(boxA, boxB):
 def find_centroid(bbox):
     return int((bbox[0] + bbox[2]) / 2), int((bbox[1] + bbox[3]) / 2)
 
+
 class CountTruth:
     def __init__(self, inside, outside):
         self.inside = inside
         self.outside = outside
+
 
 def get_truth(video_name, read_name='data_files/labels_counted.csv'):
     with open('data_files/labels_counted.csv', 'r') as file:
@@ -75,6 +76,7 @@ def get_truth(video_name, read_name='data_files/labels_counted.csv'):
             TruthArr.inside = int(line[2])
             TruthArr.outside = int(line[3])
     return TruthArr
+
 
 class Counter:
     def __init__(self, counter_in, counter_out, track_id):
@@ -99,7 +101,8 @@ class Counter:
         return self.counter_in, self.counter_out
 
     def return_total_count(self):
-        return (self.counter_in + self.counter_out )
+        return (self.counter_in + self.counter_out)
+
 
 def main(yolo):
     # Definition of the parameters
@@ -127,6 +130,7 @@ def main(yolo):
     files = os.listdir('data_files/videos')
     for file in files:
         video_name = file
+        print("opening video: {}".format(file))
         file_path = join('data_files/videos', video_name)
         output_name = 'save_data/out_' + video_name[0:-3] + output_format
         counter = Counter(counter_in=0, counter_out=0, track_id=0)
@@ -165,25 +169,24 @@ def main(yolo):
                 door_array = all_doors[video_name]
 
             door_centroid = find_centroid(door_array)
-
-        # if enter_array is None:
-        #     if initialize_enter_by_yourself:
-        #         enter_array = select_object(first_frame)[0]
-        #         print(enter_array)
-        #     else:
-        #         enter_array = [712, 10, 1468, 613]
-        #     enter_centroid = find_centroid(enter_array)
         border_door = door_array[3]
         while True:
             ret, frame = video_capture.read()  # frame shape 640*480*3
             if not ret:
+                y1 = (counter.counter_in - truth.inside) ** 2
+                y2 = (counter.counter_out - truth.outside) ** 2
                 total_count = counter.return_total_count()
-                true_total = truth.inside + truth.inside
-                err = abs(total_count - true_total)/true_total
+                true_total = truth.inside + truth.outside
+                err = abs(total_count - true_total) / true_total
+                mse = (y1 + y2) / 2
                 log_res = "in video: {}\n predicted / true\n counter in: {} / {}\n counter out: {} / {}\n" \
-                          " total: {} / {}\n error: {}\n______________\n".format(video_name, counter.counter_in, truth.inside,
-                                                                counter.counter_out, truth.outside,
-                                         total_count, true_total, err)
+                          " total: {} / {}\n error: {}\n mse error: {}\n______________\n".format(video_name,
+                                                                                                 counter.counter_in,
+                                                                                                 truth.inside,
+                                                                                                 counter.counter_out,
+                                                                                                 truth.outside,
+                                                                                                 total_count,
+                                                                                                 true_total, err, mse)
                 with open('log_results.txt', 'w') as file:
                     file.write(log_res)
                 print(log_res)
@@ -211,7 +214,7 @@ def main(yolo):
             tracker.update(detections)
 
             cv2.rectangle(frame, (int(door_array[0]), int(door_array[1])), (int(door_array[2]), int(door_array[3])),
-                          (23, 158, 21), 2)
+                          (23, 158, 21), 3)
             for det in detections:
                 bbox = det.to_tlbr()
                 if show_detections and len(classes) > 0:
@@ -235,7 +238,7 @@ def main(yolo):
                     if 0.1 < bb_intersection_over_union(bbox, door_array):
                         counter.people_init[track.track_id] = 1
                     #     initialized in the bus, mb going out
-                    elif bb_intersection_over_union(bbox, door_array) < 0.1:# and bbox[3] > border_door:
+                    elif bb_intersection_over_union(bbox, door_array) < 0.1:  # and bbox[3] > border_door:
                         counter.people_init[track.track_id] = 2
                     counter.people_bbox[track.track_id] = bbox
                 counter.cur_bbox[track.track_id] = bbox
@@ -247,7 +250,8 @@ def main(yolo):
 
                 if not show_detections:
                     track_cls = track.cls
-                    cv2.putText(frame, str(track_cls), (int(bbox[0]), int(bbox[3])), 0, 1e-3 * frame.shape[0], (0, 255, 0),
+                    cv2.putText(frame, str(track_cls), (int(bbox[0]), int(bbox[3])), 0, 1e-3 * frame.shape[0],
+                                (0, 255, 0),
                                 1)
                     cv2.putText(frame, 'ADC: ' + adc, (int(bbox[0]), int(bbox[3] + 2e-2 * frame.shape[1])), 0,
                                 1e-3 * frame.shape[0], (0, 255, 0), 1)
@@ -263,10 +267,12 @@ def main(yolo):
                 if val in id_get_lost and counter.people_init[val] != -1:
                     iou_door = bb_intersection_over_union(counter.cur_bbox[val], door_array)
 
-                    if counter.people_init[val] == 1 and iou_door <= 0.45 and vector_person[1] > 50 : #and counter.people_bbox[val][3] > border_door \
+                    if counter.people_init[val] == 1 and iou_door <= 0.45 and vector_person[
+                        1] > 50:  # and counter.people_bbox[val][3] > border_door \
 
                         counter.get_in()
-                    elif counter.people_init[val] == 2 and iou_door > 0.03 and vector_person[1] < -50: # and counter.people_bbox[val][3] < border_door\
+                    elif counter.people_init[val] == 2 and iou_door > 0.03 and vector_person[
+                        1] < -50:  # and counter.people_bbox[val][3] < border_door\
 
                         counter.get_out()
                     counter.people_init[val] = -1
@@ -274,16 +280,17 @@ def main(yolo):
                     print(find_centroid(counter.cur_bbox[val]))
                     print('\n', find_centroid(counter.people_bbox[val]))
                     print('\n', vector_person)
-                    imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]), find_centroid(counter.people_bbox[val]),
+                    imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
+                                      find_centroid(counter.people_bbox[val]),
                                       (254, 0, 0), 7)
                     # cv2.imshow('frame', imaggg)
                     # cv2.waitKey(0)
 
                     del val
                 elif val in id_inside_tracked and counter.people_init[val] == 1 \
-                        and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.25\
-                        and vector_person[1] > 0: # and \
-                        # counter.people_bbox[val][3] > border_door:
+                        and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.25 \
+                        and vector_person[1] > 0:  # and \
+                    # counter.people_bbox[val][3] > border_door:
                     counter.get_in()
 
                     counter.people_init[val] = -1
@@ -295,8 +302,6 @@ def main(yolo):
                                       (0, 0, 255), 7)
                     # cv2.imshow('frame', imaggg)
                     # cv2.waitKey(0)
-
-
 
             ins, outs = counter.show_counter()
             cv2.putText(frame, "in: {}, out: {} ".format(ins, outs), (10, 30), 0,

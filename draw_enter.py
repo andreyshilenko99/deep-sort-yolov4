@@ -102,7 +102,7 @@ def read_door_info(name='doors_info.csv'):
         lines = file.readlines()
     for line in lines:
         line_l = line.split(";")
-        val = line_l[1][2:-4].split(",")
+        val = line_l[1][2:-3].split(",")
         for i, v in enumerate(val):
             val[i] = int(v)
         door_info[line_l[0]] = val
