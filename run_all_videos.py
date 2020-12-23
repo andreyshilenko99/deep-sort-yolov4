@@ -177,7 +177,10 @@ def main(yolo):
                 y2 = (counter.counter_out - truth.outside) ** 2
                 total_count = counter.return_total_count()
                 true_total = truth.inside + truth.outside
-                err = abs(total_count - true_total) / true_total
+                if true_total != 0:
+                    err = abs(total_count - true_total) / true_total
+                else:
+                    err = abs(total_count - true_total)
                 mse = (y1 + y2) / 2
                 log_res = "in video: {}\n predicted / true\n counter in: {} / {}\n counter out: {} / {}\n" \
                           " total: {} / {}\n error: {}\n mse error: {}\n______________\n".format(video_name,
