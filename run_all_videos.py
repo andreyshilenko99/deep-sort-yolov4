@@ -23,12 +23,12 @@ from os.path import join
 from collections import OrderedDict
 from draw_enter import select_object, read_door_info
 
+
 config = tensorflow.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
 session = tensorflow.compat.v1.InteractiveSession(config=config)
 
 warnings.filterwarnings('ignore')
-
 rect_endpoint_tmp = []
 rect_bbox = []
 bbox_list_rois = []
