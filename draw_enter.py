@@ -1,13 +1,13 @@
 import cv2
 import os
 import numpy as np
+
 rect_endpoint_tmp = []
 rect_bbox = []
 drawing = False
 
 
 def select_object(img):
-
     """
     Interactive select rectangle ROIs and store list of bboxes.
 
@@ -24,6 +24,7 @@ def select_object(img):
 
     # mouse callback function
     bbox_list_rois = []
+
     def draw_rect_roi(event, x, y, flags, param):
 
         # grab references to the global variables
@@ -96,6 +97,7 @@ def select_object(img):
 
     return bbox_list_rois
 
+
 def read_door_info(name='doors_info.csv'):
     door_info = {}
     with open(name, 'r') as file:
@@ -107,7 +109,6 @@ def read_door_info(name='doors_info.csv'):
             val[i] = int(v)
         door_info[line_l[0]] = val
     return door_info
-
 
 
 if __name__ == "__main__":
@@ -122,7 +123,7 @@ if __name__ == "__main__":
 
     with open('doors_info.csv', 'w') as f:
         for name in doors_arr.keys():
-            f.write(str(name) + ';' + str(doors_arr[name]) +'\n')
+            f.write(str(name) + ';' + str(doors_arr[name]) + '\n')
 
     d = read_door_info()
     print(d)
