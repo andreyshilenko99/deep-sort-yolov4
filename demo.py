@@ -223,13 +223,15 @@ def main(yolo):
             if track.track_id not in counter.people_init or counter.people_init[track.track_id] == 0:
                 counter.obj_initialized(track.track_id)
                 #     initialized in the bus, mb going out
-                if bb_intersection_over_union(bbox, door_array) < 0.2 and bbox[3] > border_door:
-                    counter.people_init[track.track_id] = 2
+                # if bb_intersection_over_union(bbox, door_array) < 0.2 and bbox[3] > border_door:
+                if 0.01 <= bb_intersection_over_union(bbox, door_array):
+                    counter.people_init[track.track_id] = 1
 
                 #     was initialized in door, probably going in
                 # if (bb_intersection_over_union(bbox, door_array) >= 0.03 and bbox[3] < border_door) or (
-                elif 0.1 < bb_intersection_over_union(bbox, door_array):
-                    counter.people_init[track.track_id] = 1
+                # elif 0.1 < bb_intersection_over_union(bbox, door_array):
+                elif bb_intersection_over_union(bbox, door_array) < 0.01:
+                    counter.people_init[track.track_id] = 2
 
                 counter.people_bbox[track.track_id] = bbox
             counter.cur_bbox[track.track_id] = bbox
@@ -246,48 +248,49 @@ def main(yolo):
                 cv2.putText(frame, 'ADC: ' + adc, (int(bbox[0]), int(bbox[3] + 2e-2 * frame.shape[1])), 0,
                             1e-3 * frame.shape[0], (0, 255, 0), 1)
 
-        id_get_lost = [track.track_id for track in tracker.tracks if track.time_since_update >= 19
+        id_get_lost = [track.track_id for track in tracker.tracks if track.time_since_update >= 25
                        and track.age >= 29]
         id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 60]
         for val in counter.people_init.keys():
             # check bbox also
-            vector_person = (counter.cur_bbox[val][0] - counter.people_bbox[val][0],
-                             counter.cur_bbox[val][1] - counter.people_bbox[val][1])
+            cur_c = find_centroid(counter.cur_bbox[val])
+            init_c = find_centroid(counter.people_bbox[val])
+            vector_person = (cur_c[0] - init_c[0],
+                             cur_c[1] - init_c[1])
 
             if val in id_get_lost and counter.people_init[val] != -1:
                 iou_door = bb_intersection_over_union(counter.cur_bbox[val], door_array)
 
-                if counter.people_init[val] == 1 and iou_door <= 0.45 and vector_person[1] > 50:  # and counter.people_bbox[val][3] > border_door \
+                if vector_person[1] > 70:  # and counter.people_bbox[val][3] > border_door \
 
                     counter.get_in()
-                elif counter.people_init[val] == 2 and iou_door > 0.03 and vector_person[1] < -50 \
-                        and counter.people_bbox[val][3] < border_door:
+                elif vector_person[1] < -70:
 
                     counter.get_out()
                 counter.people_init[val] = -1
-
-                print(find_centroid(counter.cur_bbox[val]))
-                print('\n', find_centroid(counter.people_bbox[val]))
-                print('\n', vector_person)
+                print(f"person left frame")
+                print(f"current centroid - init : {cur_c} - {init_c}\n")
+                print(f"vector: {vector_person}\n")
                 imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]), find_centroid(counter.people_bbox[val]),
                                   (254, 0, 0), 7)
                 # cv2.imshow('frame', imaggg)
                 # cv2.waitKey(0)
 
                 del val
-            elif val in id_inside_tracked and val not in id_get_lost and counter.people_init[val] == 1 \
-                    and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.3 \
-                    and vector_person[1] > 0:  # and \
-                # counter.people_bbox[val][3] > border_door:
-                counter.get_in()
+            # elif val in id_inside_tracked and val not in id_get_lost and counter.people_init[val] == 1 \
+            #         and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.3 \
+            #         and vector_person[1] > 0:  # and \
+            #     # counter.people_bbox[val][3] > border_door:
+            #     counter.get_in()
+            #
+            #     counter.people_init[val] = -1
+            #     print(f"person is tracked for a long time")
+            #     print(f"current centroid - init : {cur_c} - {init_c}\n")
+            #     print(f"vector: {vector_person}\n")
+            #     imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
+            #                       find_centroid(counter.people_bbox[val]),
+            #                       (0, 0, 255), 7)
 
-                counter.people_init[val] = -1
-                print(find_centroid(counter.cur_bbox[val]))
-                print('\n', find_centroid(counter.people_bbox[val]))
-                print('\n', vector_person)
-                imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
-                                  find_centroid(counter.people_bbox[val]),
-                                  (0, 0, 255), 7)
                 # cv2.imshow('frame', imaggg)
                 # cv2.waitKey(0)
 
@@ -308,7 +311,7 @@ def main(yolo):
 
         if not asyncVideo_flag:
             fps = (fps + (1. / (time.time() - t1))) / 2
-            print("FPS = %f" % (fps))
+            # print("FPS = %f" % (fps))
 
         # Press Q to stop!
         if cv2.waitKey(1) & 0xFF == ord('q'):

@@ -1,7 +1,7 @@
-in video: bus9_5in_0out.mp4
+in video: bus8_4in_1out.mp4
  predicted / true
- counter in: 5 / 5
- counter out: 0 / 0
- total: 5 / 10
- error: 0.5
+ counter in: 5 / 4
+ counter out: 1 / 1
+ total: 6 / 5
+ error: 0.2
 ______________

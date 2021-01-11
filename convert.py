@@ -161,10 +161,10 @@ class Yolo4(object):
         self.sess.close()
 
 if __name__ == '__main__':
-    model_path = 'model_data/yolo4.h5'
+    model_path = 'model_data/yolo4_head.h5'
     anchors_path = 'model_data/yolo_anchors.txt'
-    classes_path = 'model_data/coco_classes.txt'
-    weights_path = 'model_data/yolov4.weights'
+    classes_path = 'model_data/head_classes.txt'
+    weights_path = 'model_data/yolov4-custom_best.weights'
 
     score = 0.5
     iou = 0.5

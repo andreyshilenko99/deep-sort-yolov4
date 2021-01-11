@@ -269,13 +269,12 @@ def main(yolo):
                 if val in id_get_lost and counter.people_init[val] != -1:
                     iou_door = bb_intersection_over_union(counter.cur_bbox[val], door_array)
 
-                    if counter.people_init[val] == 1 and iou_door <= 0.45 and vector_person[1] > 50:
+                    if counter.people_init[val] == 1 and iou_door <= 0.1 and vector_person[1] > 100:
                         # and counter.people_bbox[val][3] > border_door \
-
                         counter.get_in()
-                    elif counter.people_init[val] == 2 and iou_door > 0.03 and vector_person[
-                        1] < -50:  # and counter.people_bbox[val][3] < border_door\
 
+                    elif counter.people_init[val] == 2 and iou_door > 0.1 and vector_person[1] < -100:
+                        # and counter.people_bbox[val][3] < border_door\
                         counter.get_out()
                     counter.people_init[val] = -1
 
@@ -322,7 +321,7 @@ def main(yolo):
 
             if not asyncVideo_flag:
                 fps = (fps + (1. / (time.time() - t1))) / 2
-                print("FPS = %f" % fps)
+                # print("FPS = %f" % fps)
 
             # Press Q to stop!
             if cv2.waitKey(1) & 0xFF == ord('q'):
