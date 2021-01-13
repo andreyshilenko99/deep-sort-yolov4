@@ -103,7 +103,7 @@ def main(yolo):
 
     error_values = []
 
-    files = os.listdir('data_files/videos')
+    files = sorted(os.listdir('data_files/videos'))
     for file in files:
         video_name = file
         print("opening video: {}".format(file))
@@ -136,13 +136,8 @@ def main(yolo):
 
         ret, first_frame = video_capture.read()
 
-        if door_array is None:
-            if initialize_door_by_yourself:
-                door_array = select_object(first_frame)[0]
-                print(door_array)
-            else:
-                all_doors = read_door_info('data_files/doors_info.csv')
-                door_array = all_doors[video_name]
+        all_doors = read_door_info('data_files/doors_info.csv')
+        door_array = all_doors[video_name]
 
         border_door = door_array[3]
         while True:
@@ -267,9 +262,9 @@ def main(yolo):
                         counter.get_out()
 
                     counter.people_init[val] = -1
-                    print(f"person left frame")
-                    print(f"current centroid - init : {cur_c} - {init_c}\n")
-                    print(f"vector: {vector_person}\n")
+                    # print(f"person left frame")
+                    # print(f"current centroid - init : {cur_c} - {init_c}\n")
+                    # print(f"vector: {vector_person}\n")
                     del val
 
                 # elif val in id_inside_tracked and val not in id_get_lost and counter.people_init[val] == 1 \
@@ -321,6 +316,7 @@ def main(yolo):
             out.release()
 
         cv2.destroyAllWindows()
+        del door_array
 
     mean_error = np.mean(error_values)
     print("mean error for {} videos: {}".format(len(files), mean_error))
