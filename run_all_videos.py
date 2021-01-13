@@ -7,7 +7,7 @@ from timeit import time
 import warnings
 import cv2
 import numpy as np
-import tensorflow
+import tensorflow as tf
 import os
 from PIL import Image
 from yolo import YOLO
@@ -24,9 +24,9 @@ from collections import OrderedDict
 from draw_enter import select_object, read_door_info
 from rectangles import find_centroid, Rectangle, rect_square
 
-config = tensorflow.compat.v1.ConfigProto()
+config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
-session = tensorflow.compat.v1.InteractiveSession(config=config)
+session = tf.compat.v1.InteractiveSession(config=config)
 
 warnings.filterwarnings('ignore')
 rect_endpoint_tmp = []
@@ -79,6 +79,21 @@ class Counter:
     def return_total_count(self):
         return self.counter_in + self.counter_out
 
+def check_gpu():
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try:
+            # Restrict TensorFlow to only use the fourth GPU
+            tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
+            # Currently, memory growth needs to be the same across GPUs
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+        except RuntimeError as e:
+            # Memory growth must be set before GPUs have been initialized
+            print(e)
+
 
 def main(yolo):
     # Definition of the parameters
@@ -102,7 +117,7 @@ def main(yolo):
     asyncVideo_flag = False
 
     error_values = []
-
+    check_gpu()
     files = sorted(os.listdir('data_files/videos'))
     for file in files:
         video_name = file
