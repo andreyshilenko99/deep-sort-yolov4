@@ -22,7 +22,7 @@ from videocaptureasync import VideoCaptureAsync
 from os.path import join
 from collections import OrderedDict
 from draw_enter import select_object, read_door_info
-
+from rectangles import find_centroid, Rectangle, rect_square
 
 config = tensorflow.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -33,30 +33,6 @@ rect_endpoint_tmp = []
 rect_bbox = []
 bbox_list_rois = []
 drawing = False
-
-
-def bb_intersection_over_union(boxA, boxB):
-    # determine the (x, y)-coordinates of the intersection rectangle
-    xA = max(boxA[0], boxB[0])
-    yA = max(boxA[1], boxB[1])
-    xB = min(boxA[2], boxB[2])
-    yB = min(boxA[3], boxB[3])
-    # compute the area of intersection rectangle
-    interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
-    # compute the area of both the prediction and ground-truth
-    # rectangles
-    boxAArea = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
-    boxBArea = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
-    # compute the intersection over union by taking the intersection
-    # area and dividing it by the sum of prediction + ground-truth
-    # areas - the interesection area
-    iou = interArea / float(boxAArea + boxBArea - interArea)
-    # return the intersection over union value
-    return iou
-
-
-def find_centroid(bbox):
-    return int((bbox[0] + bbox[2]) / 2), int((bbox[1] + bbox[3]) / 2)
 
 
 class CountTruth:
@@ -221,11 +197,15 @@ def main(yolo):
                 bbox = det.to_tlbr()
                 if show_detections and len(classes) > 0:
                     score = "%.2f" % (det.confidence * 100) + "%"
+                    rect_head = Rectangle(bbox[0], bbox[1], bbox[2], bbox[3])
+                    rect_door = Rectangle( int(door_array[0]), int(door_array[1]), int(door_array[2]), int(door_array[3]) )
+                    intersection = rect_head & rect_door
 
-                    iou_val = str(round(bb_intersection_over_union(bbox, door_array), 3))
-                    cv2.putText(frame, score + " iou: " + iou_val, (int(bbox[0]), int(bbox[3])), 0,
+                    if intersection:
+                        squares_coeff = rect_square(*intersection)/ rect_square(*rect_head)
+                        cv2.putText(frame, score + " inter: " + str(round(squares_coeff, 3)), (int(bbox[0]), int(bbox[3])), 0,
                                 1e-3 * frame.shape[0], (0, 100, 255), 5)
-                    cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 0, 0), 3)
+                        cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 0, 0), 3)
 
             for track in tracker.tracks:
                 if not track.is_confirmed() or track.time_since_update > 1:
@@ -235,13 +215,22 @@ def main(yolo):
 
                 if track.track_id not in counter.people_init or counter.people_init[track.track_id] == 0:
                     counter.obj_initialized(track.track_id)
-                    #     was initialized in door, probably going in
-                    # if (bb_intersection_over_union(bbox, door_array) >= 0.03 and bbox[3] < border_door) or (
-                    if 0.1 < bb_intersection_over_union(bbox, door_array):
+                    rect_head = Rectangle(bbox[0], bbox[1], bbox[2], bbox[3])
+                    rect_door = Rectangle(door_array[0], door_array[1], door_array[2], door_array[3])
+                    intersection = rect_head & rect_door
+                    if intersection:
+
+                        inter_square = rect_square(*intersection)
+                        head_square = rect_square(*rect_head)
+                        #     was initialized in door, probably going in
+                        if (inter_square/ head_square ) >= 0.8:
+                            counter.people_init[track.track_id] = 2
+                            #     initialized in the bus, mb going out
+                        elif (inter_square/ head_square ) <= 0.4 or bbox[3] > border_door:
+                            counter.people_init[track.track_id] = 1
+                    # res is None, means that object is not in door contour
+                    else:
                         counter.people_init[track.track_id] = 1
-                    #     initialized in the bus, mb going out
-                    elif bb_intersection_over_union(bbox, door_array) < 0.1:  # and bbox[3] > border_door:
-                        counter.people_init[track.track_id] = 2
                     counter.people_bbox[track.track_id] = bbox
                 counter.cur_bbox[track.track_id] = bbox
 
@@ -258,51 +247,44 @@ def main(yolo):
                     cv2.putText(frame, 'ADC: ' + adc, (int(bbox[0]), int(bbox[3] + 2e-2 * frame.shape[1])), 0,
                                 1e-3 * frame.shape[0], (0, 255, 0), 1)
 
-            id_get_lost = [track.track_id for track in tracker.tracks if track.time_since_update >= 19
-                           and track.age >= 19]
-            id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 50]
+            id_get_lost = [track.track_id for track in tracker.tracks if track.time_since_update >= 25
+                           and track.age >= 29]
+            id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 60]
             for val in counter.people_init.keys():
                 # check bbox also
-                vector_person = (counter.cur_bbox[val][0] - counter.people_bbox[val][0],
-                                 counter.cur_bbox[val][1] - counter.people_bbox[val][1])
+                cur_c = find_centroid(counter.cur_bbox[val])
+                init_c = find_centroid(counter.people_bbox[val])
+                vector_person = (cur_c[0] - init_c[0],
+                                 cur_c[1] - init_c[1])
 
                 if val in id_get_lost and counter.people_init[val] != -1:
-                    iou_door = bb_intersection_over_union(counter.cur_bbox[val], door_array)
-
-                    if counter.people_init[val] == 1 and iou_door <= 0.1 and vector_person[1] > 100:
-                        # and counter.people_bbox[val][3] > border_door \
+                    # if vector_person < 0 then current coord is less than initialized, it means that man is going
+                    # in the exit direction
+                    if vector_person[1] > 70 and counter.people_init[val] == 2:  # and counter.people_bbox[val][3] > border_door \
                         counter.get_in()
 
-                    elif counter.people_init[val] == 2 and iou_door > 0.1 and vector_person[1] < -100:
-                        # and counter.people_bbox[val][3] < border_door\
+                    elif vector_person[1] < -70 and counter.people_init[val] == 1:
                         counter.get_out()
+
                     counter.people_init[val] = -1
-
-                    print(find_centroid(counter.cur_bbox[val]))
-                    print('\n', find_centroid(counter.people_bbox[val]))
-                    print('\n', vector_person)
-                    # imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
-                    #                   find_centroid(counter.people_bbox[val]),
-                    #                   (254, 0, 0), 7)
-                    # cv2.imshow('frame', imaggg)
-                    # cv2.waitKey(0)
-
+                    print(f"person left frame")
+                    print(f"current centroid - init : {cur_c} - {init_c}\n")
+                    print(f"vector: {vector_person}\n")
                     del val
-                elif val in id_inside_tracked and counter.people_init[val] == 1 \
-                        and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.25 \
-                        and vector_person[1] > 0:  # and \
-                    # counter.people_bbox[val][3] > border_door:
-                    counter.get_in()
 
-                    counter.people_init[val] = -1
-                    print(find_centroid(counter.cur_bbox[val]))
-                    print('\n', find_centroid(counter.people_bbox[val]))
-                    print('\n', vector_person)
-                    # imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
-                    #                   find_centroid(counter.people_bbox[val]),
-                    #                   (0, 0, 255), 7)
-                    # cv2.imshow('frame', imaggg)
-                    # cv2.waitKey(0)
+                # elif val in id_inside_tracked and val not in id_get_lost and counter.people_init[val] == 1 \
+                #         and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.3 \
+                #         and vector_person[1] > 0:  # and \
+                #     # counter.people_bbox[val][3] > border_door:
+                #     counter.get_in()
+                #
+                #     counter.people_init[val] = -1
+                #     print(f"person is tracked for a long time")
+                #     print(f"current centroid - init : {cur_c} - {init_c}\n")
+                #     print(f"vector: {vector_person}\n")
+                #     imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
+                #                       find_centroid(counter.people_bbox[val]),
+                #                       (0, 0, 255), 7)
 
             ins, outs = counter.show_counter()
             cv2.putText(frame, "in: {}, out: {} ".format(ins, outs), (10, 30), 0,
