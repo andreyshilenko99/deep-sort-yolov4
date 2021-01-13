@@ -160,7 +160,7 @@ def main(yolo):
                                                                                                  truth.outside,
                                                                                                  total_count,
                                                                                                  true_total, err, mse)
-                with open('log_results.txt', 'w') as log:
+                with open('log_results.txt', 'a') as log:
                     log.write(log_res)
                 print(log_res)
                 error_values.append(err)

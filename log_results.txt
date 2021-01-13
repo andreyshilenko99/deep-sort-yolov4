@@ -1,8 +1,0 @@
-in video: bus12_0in_2out.mp4
- predicted / true
- counter in: 0 / 0
- counter out: 2 / 2
- total: 2 / 2
- error: 0.0
- mse error: 0.0
-______________
