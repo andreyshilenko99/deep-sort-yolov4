@@ -120,7 +120,7 @@ def main(yolo):
     check_gpu()
     files = sorted(os.listdir('data_files/videos'))
     for file in files:
-        video_name = "bus11_4in_1out.mp4"
+        video_name = file
         print("opening video: {}".format(file))
         file_path = join('data_files/videos', video_name)
         output_name = 'save_data/out_' + video_name[0:-3] + output_format
