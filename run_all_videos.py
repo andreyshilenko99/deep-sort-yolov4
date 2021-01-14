@@ -120,7 +120,7 @@ def main(yolo):
     check_gpu()
     files = sorted(os.listdir('data_files/videos'))
     for file in files:
-        video_name = file
+        video_name = "bus11_4in_1out.mp4"
         print("opening video: {}".format(file))
         file_path = join('data_files/videos', video_name)
         output_name = 'save_data/out_' + video_name[0:-3] + output_format
@@ -153,6 +153,7 @@ def main(yolo):
 
         all_doors = read_door_info('data_files/doors_info.csv')
         door_array = all_doors[video_name]
+        rect_door = Rectangle(door_array[0], door_array[1], door_array[2], door_array[3])
 
         border_door = door_array[3]
         while True:
@@ -226,17 +227,17 @@ def main(yolo):
                 if track.track_id not in counter.people_init or counter.people_init[track.track_id] == 0:
                     counter.obj_initialized(track.track_id)
                     rect_head = Rectangle(bbox[0], bbox[1], bbox[2], bbox[3])
-                    rect_door = Rectangle(door_array[0], door_array[1], door_array[2], door_array[3])
+
                     intersection = rect_head & rect_door
                     if intersection:
 
-                        inter_square = rect_square(*intersection)
+                        intersection_square = rect_square(*intersection)
                         head_square = rect_square(*rect_head)
                         #     was initialized in door, probably going in
-                        if (inter_square/ head_square ) >= 0.8:
+                        if (intersection_square/ head_square ) >= 0.8:
                             counter.people_init[track.track_id] = 2
                             #     initialized in the bus, mb going out
-                        elif (inter_square/ head_square ) <= 0.4 or bbox[3] > border_door:
+                        elif (intersection_square/ head_square ) <= 0.4 or bbox[3] > border_door:
                             counter.people_init[track.track_id] = 1
                     # res is None, means that object is not in door contour
                     else:
@@ -262,18 +263,33 @@ def main(yolo):
             id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 60]
             for val in counter.people_init.keys():
                 # check bbox also
+                inter_square = 0
+                cur_square = 0
+                ratio = 0
                 cur_c = find_centroid(counter.cur_bbox[val])
                 init_c = find_centroid(counter.people_bbox[val])
                 vector_person = (cur_c[0] - init_c[0],
                                  cur_c[1] - init_c[1])
 
                 if val in id_get_lost and counter.people_init[val] != -1:
+                    rect_сur = Rectangle(counter.cur_bbox[val][0], counter.cur_bbox[val][1], counter.cur_bbox[val][2], counter.cur_bbox[val][3])
+                    inter = rect_сur & rect_door
+                    if inter:
+
+                        inter_square = rect_square(*inter)
+                        cur_square = rect_square(*rect_сur)
+                        try:
+                            ratio = inter_square / cur_square
+                        except ZeroDivisionError:
+                            ratio = 0
                     # if vector_person < 0 then current coord is less than initialized, it means that man is going
                     # in the exit direction
-                    if vector_person[1] > 70 and counter.people_init[val] == 2:  # and counter.people_bbox[val][3] > border_door \
+                    if vector_person[1] > 70 and counter.people_init[val] == 2 \
+                            and ratio < 0.9:  # and counter.people_bbox[val][3] > border_door \
                         counter.get_in()
 
-                    elif vector_person[1] < -70 and counter.people_init[val] == 1:
+                    elif vector_person[1] < -70 and counter.people_init[val] == 1 \
+                            and ratio >= 0.6:
                         counter.get_out()
 
                     counter.people_init[val] = -1
