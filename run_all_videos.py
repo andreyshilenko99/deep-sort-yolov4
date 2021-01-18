@@ -59,6 +59,7 @@ class Counter:
         self.people_init = OrderedDict()
         self.people_bbox = OrderedDict()
         self.cur_bbox = OrderedDict()
+        self.rat_init = OrderedDict()
         # self.dissappeared_frames = OrderedDict()
         self.counter_in = counter_in
         self.counter_out = counter_out
@@ -78,6 +79,7 @@ class Counter:
 
     def return_total_count(self):
         return self.counter_in + self.counter_out
+
 
 def check_gpu():
     gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -208,15 +210,15 @@ def main(yolo):
                 bbox = det.to_tlbr()
                 if show_detections and len(classes) > 0:
                     score = "%.2f" % (det.confidence * 100) + "%"
-                    rect_head = Rectangle(bbox[0], bbox[1], bbox[2], bbox[3])
-                    rect_door = Rectangle( int(door_array[0]), int(door_array[1]), int(door_array[2]), int(door_array[3]) )
-                    intersection = rect_head & rect_door
-
-                    if intersection:
-                        squares_coeff = rect_square(*intersection)/ rect_square(*rect_head)
-                        cv2.putText(frame, score + " inter: " + str(round(squares_coeff, 3)), (int(bbox[0]), int(bbox[3])), 0,
-                                1e-3 * frame.shape[0], (0, 100, 255), 5)
-                        cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 0, 0), 3)
+                    # rect_head = Rectangle(bbox[0], bbox[1], bbox[2], bbox[3])
+                    # rect_door = Rectangle( int(door_array[0]), int(door_array[1]), int(door_array[2]), int(door_array[3]) )
+                    # intersection = rect_head & rect_door
+                    #
+                    # if intersection:
+                    #     squares_coeff = rect_square(*intersection)/ rect_square(*rect_head)
+                    #     cv2.putText(frame, score + " inter: " + str(round(squares_coeff, 3)), (int(bbox[0]), int(bbox[3])), 0,
+                    #             1e-3 * frame.shape[0], (0, 100, 255), 5)
+                    cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 0, 0), 3)
 
             for track in tracker.tracks:
                 if not track.is_confirmed() or track.time_since_update > 1:
@@ -233,12 +235,20 @@ def main(yolo):
 
                         intersection_square = rect_square(*intersection)
                         head_square = rect_square(*rect_head)
+                        rat = intersection_square / head_square
+
+                        #             1e-3 * frame.shape[0], (0, 100, 255), 5)
+
                         #     was initialized in door, probably going in
-                        if (intersection_square/ head_square ) >= 0.8:
+                        if rat >= 0.7:
                             counter.people_init[track.track_id] = 2
                             #     initialized in the bus, mb going out
-                        elif (intersection_square/ head_square ) <= 0.4 or bbox[3] > border_door:
+                        elif rat <= 0.4 or bbox[3] > border_door:
                             counter.people_init[track.track_id] = 1
+                        #     initialized between the exit and bus, not obvious state
+                        elif rat > 0.4 and rat < 0.7:
+                            counter.people_init[track.track_id] = 3
+                            counter.rat_init[track.track_id] = rat
                     # res is None, means that object is not in door contour
                     else:
                         counter.people_init[track.track_id] = 1
@@ -258,8 +268,8 @@ def main(yolo):
                     cv2.putText(frame, 'ADC: ' + adc, (int(bbox[0]), int(bbox[3] + 2e-2 * frame.shape[1])), 0,
                                 1e-3 * frame.shape[0], (0, 255, 0), 1)
 
-            id_get_lost = [track.track_id for track in tracker.tracks if track.time_since_update >= 25
-                           and track.age >= 29]
+            id_get_lost = [track.track_id for track in tracker.tracks if track.time_since_update >= 35]
+            # and track.age >= 29]
             id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 60]
             for val in counter.people_init.keys():
                 # check bbox also
@@ -272,7 +282,8 @@ def main(yolo):
                                  cur_c[1] - init_c[1])
 
                 if val in id_get_lost and counter.people_init[val] != -1:
-                    rect_сur = Rectangle(counter.cur_bbox[val][0], counter.cur_bbox[val][1], counter.cur_bbox[val][2], counter.cur_bbox[val][3])
+                    rect_сur = Rectangle(counter.cur_bbox[val][0], counter.cur_bbox[val][1], counter.cur_bbox[val][2],
+                                         counter.cur_bbox[val][3])
                     inter = rect_сur & rect_door
                     if inter:
 
@@ -282,6 +293,8 @@ def main(yolo):
                             ratio = inter_square / cur_square
                         except ZeroDivisionError:
                             ratio = 0
+
+
                     # if vector_person < 0 then current coord is less than initialized, it means that man is going
                     # in the exit direction
                     if vector_person[1] > 70 and counter.people_init[val] == 2 \
@@ -292,11 +305,20 @@ def main(yolo):
                             and ratio >= 0.6:
                         counter.get_out()
 
+                    elif vector_person[1] < -70 and counter.people_init[val] == 3 \
+                            and ratio > counter.rat_init[val] and ratio > 0.6:
+                        counter.get_out()
+                    elif vector_person[1] > 70 and counter.people_init[val] == 3 \
+                            and ratio < counter.rat_init[val] and ratio < 0.6:
+                        counter.get_in()
+
                     counter.people_init[val] = -1
-                    # print(f"person left frame")
-                    # print(f"current centroid - init : {cur_c} - {init_c}\n")
-                    # print(f"vector: {vector_person}\n")
                     del val
+                # cv2.putText(frame, " inter: " + str(round(ratio, 3)),
+                #             (int(counter.cur_bbox[val][0]), int(counter.cur_bbox[val][3])),
+                #             0, 1e-3 * frame.shape[0], (0, 100, 255), 5)
+
+
 
                 # elif val in id_inside_tracked and val not in id_get_lost and counter.people_init[val] == 1 \
                 #         and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.3 \
