@@ -314,6 +314,7 @@ def main(yolo):
                     counter.people_init[val] = -1
                     del val
 
+
             ins, outs = counter.show_counter()
             cv2.rectangle(frame, (0, 0), (250, 50),
                           (0, 0, 0), -1, 8)
