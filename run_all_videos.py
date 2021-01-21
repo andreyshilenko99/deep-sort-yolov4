@@ -121,9 +121,10 @@ def main(yolo):
     error_values = []
     check_gpu()
     files = sorted(os.listdir('data_files/videos'))
-    for file in files:
-        video_name = file
-        print("opening video: {}".format(file))
+
+
+    for video_name in files:
+        print("opening video: {}".format(video_name))
         file_path = join('data_files/videos', video_name)
         output_name = 'save_data/out_' + video_name[0:-3] + output_format
         counter = Counter(counter_in=0, counter_out=0, track_id=0)
@@ -150,8 +151,6 @@ def main(yolo):
 
         fps = 0.0
         fps_imutils = imutils.video.FPS().start()
-
-        ret, first_frame = video_capture.read()
 
         all_doors = read_door_info('data_files/doors_info.csv')
         door_array = all_doors[video_name]
@@ -270,7 +269,7 @@ def main(yolo):
 
             id_get_lost = [track.track_id for track in tracker.tracks if track.time_since_update >= 35]
             # and track.age >= 29]
-            id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 60]
+            # id_inside_tracked = [track.track_id for track in tracker.tracks if track.age > 60]
             for val in counter.people_init.keys():
                 # check bbox also
                 inter_square = 0
@@ -282,8 +281,8 @@ def main(yolo):
                                  cur_c[1] - init_c[1])
 
                 if val in id_get_lost and counter.people_init[val] != -1:
-                    rect_сur = Rectangle(counter.cur_bbox[val][0], counter.cur_bbox[val][1], counter.cur_bbox[val][2],
-                                         counter.cur_bbox[val][3])
+                    rect_сur = Rectangle(counter.cur_bbox[val][0], counter.cur_bbox[val][1],
+                                         counter.cur_bbox[val][2], counter.cur_bbox[val][3])
                     inter = rect_сur & rect_door
                     if inter:
 
@@ -306,7 +305,7 @@ def main(yolo):
                         counter.get_out()
 
                     elif vector_person[1] < -70 and counter.people_init[val] == 3 \
-                            and ratio > counter.rat_init[val] and ratio > 0.6:
+                            and ratio > counter.rat_init[val] and ratio >= 0.6:
                         counter.get_out()
                     elif vector_person[1] > 70 and counter.people_init[val] == 3 \
                             and ratio < counter.rat_init[val] and ratio < 0.6:
@@ -314,33 +313,16 @@ def main(yolo):
 
                     counter.people_init[val] = -1
                     del val
-                # cv2.putText(frame, " inter: " + str(round(ratio, 3)),
-                #             (int(counter.cur_bbox[val][0]), int(counter.cur_bbox[val][3])),
-                #             0, 1e-3 * frame.shape[0], (0, 100, 255), 5)
-
-
-
-                # elif val in id_inside_tracked and val not in id_get_lost and counter.people_init[val] == 1 \
-                #         and bb_intersection_over_union(counter.cur_bbox[val], door_array) <= 0.3 \
-                #         and vector_person[1] > 0:  # and \
-                #     # counter.people_bbox[val][3] > border_door:
-                #     counter.get_in()
-                #
-                #     counter.people_init[val] = -1
-                #     print(f"person is tracked for a long time")
-                #     print(f"current centroid - init : {cur_c} - {init_c}\n")
-                #     print(f"vector: {vector_person}\n")
-                #     imaggg = cv2.line(frame, find_centroid(counter.cur_bbox[val]),
-                #                       find_centroid(counter.people_bbox[val]),
-                #                       (0, 0, 255), 7)
 
             ins, outs = counter.show_counter()
-            cv2.putText(frame, "in: {}, out: {} ".format(ins, outs), (10, 30), 0,
-                        1e-3 * frame.shape[0], (255, 0, 0), 5)
+            cv2.rectangle(frame, (0, 0), (250, 50),
+                          (0, 0, 0), -1, 8)
+            cv2.putText(frame, "in: {}, out: {} ".format(ins, outs), (10, 35), 0,
+                        1e-3 * frame.shape[0], (255, 255, 255), 3)
 
-            cv2.namedWindow('image', cv2.WINDOW_NORMAL)
-            cv2.resizeWindow('image', 1400, 800)
-            cv2.imshow('image', frame)
+            cv2.namedWindow('video', cv2.WINDOW_NORMAL)
+            cv2.resizeWindow('video', 1422, 800)
+            cv2.imshow('video', frame)
 
             if writeVideo_flag:
                 # save a frame
