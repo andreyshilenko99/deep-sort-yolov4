@@ -28,7 +28,7 @@ class YOLO(object):
         self.class_names = self._get_class()
         self.anchors = self._get_anchors()
         self.sess = tf.compat.v1.keras.backend.get_session()
-        self.model_image_size = (416, 416)  # fixed size or (None, None)
+        self.model_image_size = (448, 448)  # fixed size or (None, None)
         self.is_fixed_size = self.model_image_size != (None, None)
         self.boxes, self.scores, self.classes = self.generate()
 
